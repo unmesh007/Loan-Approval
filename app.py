@@ -25,6 +25,10 @@ def load_assets():
         
     try:
         hist_data = pd.read_csv("loan_approval_dataset.csv")
+        hist_data.columns = hist_data.columns.str.strip()
+        cat_cols = hist_data.select_dtypes(include=["object"]).columns
+        for c in cat_cols:
+            hist_data[c] = hist_data[c].str.strip()
     except FileNotFoundError:
         st.error("Historical data 'loan_approval_dataset.csv' not found.")
         st.stop()
