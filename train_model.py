@@ -13,11 +13,19 @@ def train_and_save():
         print("Error: 'loan_approval_dataset.csv' not found.")
         return
         
-    if 'Applicant_ID' in df.columns:
-        df = df.drop('Applicant_ID', axis=1)
+    # Strip spaces from column names
+    df.columns = df.columns.str.strip()
+    
+    if 'loan_id' in df.columns:
+        df = df.drop('loan_id', axis=1)
 
-    y_raw = df['Loan_Approved']
-    X_raw = df.drop('Loan_Approved', axis=1)
+    # Strip spaces from categorical columns
+    cat_cols_raw = df.select_dtypes(include=["object"]).columns
+    for col in cat_cols_raw:
+        df[col] = df[col].str.strip()
+
+    y_raw = df['loan_status']
+    X_raw = df.drop('loan_status', axis=1)
 
     num_cols = X_raw.select_dtypes(include=["int64", "float64"]).columns
     cat_cols = X_raw.select_dtypes(include=["object"]).columns
@@ -32,16 +40,12 @@ def train_and_save():
     y = le_target.fit_transform(y_raw)
 
     le_edu = LabelEncoder()
-    X_raw["Education_Level"] = le_edu.fit_transform(X_raw["Education_Level"])
-
-    X_raw["DTI_Ratio_sq"] = X_raw["DTI_Ratio"] ** 2
-    X_raw["Credit_Score_sq"] = X_raw["Credit_Score"] ** 2
+    X_raw["education"] = le_edu.fit_transform(X_raw["education"])
     
     # Smarter Feature Engineering
-    X_raw["Total_Income"] = X_raw["Applicant_Income"] + X_raw["Coapplicant_Income"]
-    X_raw["Loan_to_Income_Ratio"] = X_raw["Loan_Amount"] / (X_raw["Total_Income"] + 1)
-    
-    X_raw = X_raw.drop(columns=["Credit_Score", "DTI_Ratio"])
+    X_raw["Total_Assets"] = X_raw["residential_assets_value"] + X_raw["commercial_assets_value"] + X_raw["luxury_assets_value"] + X_raw["bank_asset_value"]
+    X_raw["Loan_to_Income_Ratio"] = X_raw["loan_amount"] / (X_raw["income_annum"] + 1)
+    X_raw["cibil_score_sq"] = X_raw["cibil_score"] ** 2
 
     X = pd.get_dummies(X_raw, drop_first=True)
     training_columns = X.columns 

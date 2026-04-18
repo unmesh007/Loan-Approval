@@ -40,16 +40,16 @@ from visualizations import create_risk_gauge, create_radar_chart, create_distrib
 # ==========================================
 # 2. PDF REPORT GENERATOR
 # ==========================================
-def calculate_risk(dti, credit_score, loan_amount):
+def calculate_risk(cibil, lti, loan_amount):
     points = 0
     factors = []
-    if dti > 0.4: points += 3; factors.append("High Debt-to-Income Ratio")
-    elif dti > 0.25: points += 1; factors.append("Moderate Debt-to-Income Ratio")
+    if lti > 6: points += 3; factors.append("Extremely High Loan-to-Income Multiple")
+    elif lti > 3: points += 1; factors.append("High Loan-to-Income Multiple")
         
-    if credit_score < 600: points += 3; factors.append("Poor Credit Score")
-    elif credit_score < 680: points += 1; factors.append("Fair Credit Score")
+    if cibil < 500: points += 3; factors.append("Poor CIBIL Score")
+    elif cibil < 700: points += 1; factors.append("Fair CIBIL Score")
         
-    if loan_amount > 30000: points += 1; factors.append("Large Loan Amount")
+    if loan_amount > 10000000: points += 1; factors.append("Large Jumbo Loan Amount")
         
     if points >= 4: return "High Risk", factors, ["Require Guarantor", "Lower Loan Amount"]
     elif points >= 2: return "Medium Risk", factors, ["Higher Interest Rate", "Shorter Term"]
@@ -120,47 +120,43 @@ with tab_form:
         col1, col2 = st.columns(2)
         with col1:
             app_name = st.text_input("Applicant Name / ID", "")
-            app_income = st.number_input("Applicant Income (INR)")
-            coapp_income = st.number_input("Coapplicant Income (INR)")
-            age = st.number_input("Age")
-            dependents = st.number_input("Dependents")
-            credit_score = st.number_input("Credit Score")
-            existing_loans = st.number_input("Existing Loans")
-            education = st.selectbox("Education Level", ['Graduate', 'Not Graduate'])
-            gender = st.selectbox("Gender", ['Male', 'Female'])
+            dependents = st.number_input("No. of Dependents", min_value=0, step=1)
+            education = st.selectbox("Education", ['Graduate', 'Not Graduate'])
+            self_employed = st.selectbox("Self Employed", ['Yes', 'No'])
+            income_annum = st.number_input("Annual Income (INR)", min_value=0, step=100000)
+            loan_amount = st.number_input("Loan Amount (INR)", min_value=0, step=100000)
             
         with col2:
-            employment = st.selectbox("Employment Status", ['Salaried', 'Self-employed', 'Unemployed'])
-            marital_status = st.selectbox("Marital Status", ['Single', 'Married'])
-            employer_cat = st.selectbox("Employer Category", ['Government', 'Private', 'MNC', 'Unemployed'])
-            loan_amount = st.number_input("Loan Amount (INR)")
-            loan_term = st.selectbox("Loan Term (Months)", [12, 24, 36, 48, 60, 72, 84])
-            loan_purpose = st.selectbox("Loan Purpose", ['Home', 'Car', 'Personal', 'Business', 'Education'])
-            property_area = st.selectbox("Property Area", ['Urban', 'Semiurban', 'Rural'])
-            dti = st.number_input("Debt-To-Income Ratio (DTI)")
-            savings = st.number_input("Savings (INR)")
-            collateral = st.number_input("Collateral Value (INR)")
+            loan_term = st.number_input("Loan Term (Months)", min_value=0, step=12)
+            cibil_score = st.number_input("CIBIL Score", min_value=300, max_value=900, step=10)
+            res_assets = st.number_input("Residential Assets", min_value=0, step=100000)
+            com_assets = st.number_input("Commercial Assets", min_value=0, step=100000)
+            lux_assets = st.number_input("Luxury Assets", min_value=0, step=100000)
+            bank_assets = st.number_input("Bank Asset", min_value=0, step=100000)
             
         submit_btn = st.form_submit_button("Run Analysis & Generate Report")
         
     if submit_btn:
         user_data = pd.DataFrame([{
-            'Applicant_Income': app_income, 'Coapplicant_Income': coapp_income, 'Employment_Status': employment,
-            'Age': age, 'Marital_Status': marital_status, 'Dependents': dependents, 'Credit_Score': credit_score,
-            'Existing_Loans': existing_loans, 'DTI_Ratio': dti, 'Savings': savings, 'Collateral_Value': collateral,
-            'Loan_Amount': loan_amount, 'Loan_Term': loan_term, 'Loan_Purpose': loan_purpose, 
-            'Property_Area': property_area, 'Education_Level': education, 'Gender': gender, 'Employer_Category': employer_cat
+            'no_of_dependents': dependents, 
+            'education': education, 
+            'self_employed': self_employed,
+            'income_annum': income_annum, 
+            'loan_amount': loan_amount, 
+            'loan_term': loan_term, 
+            'cibil_score': cibil_score,
+            'residential_assets_value': res_assets, 
+            'commercial_assets_value': com_assets, 
+            'luxury_assets_value': lux_assets, 
+            'bank_asset_value': bank_assets
         }])
         
-        user_data["Education_Level"] = le_edu.transform(user_data["Education_Level"])
-        user_data["DTI_Ratio_sq"] = user_data["DTI_Ratio"] ** 2
-        user_data["Credit_Score_sq"] = user_data["Credit_Score"] ** 2
+        user_data["education"] = le_edu.transform(user_data["education"])
         
         # Apply the exact same engineered features to user input
-        user_data["Total_Income"] = user_data["Applicant_Income"] + user_data["Coapplicant_Income"]
-        user_data["Loan_to_Income_Ratio"] = user_data["Loan_Amount"] / (user_data["Total_Income"] + 1)
-        
-        user_data = user_data.drop(columns=["Credit_Score", "DTI_Ratio"])
+        user_data["Total_Assets"] = user_data["residential_assets_value"] + user_data["commercial_assets_value"] + user_data["luxury_assets_value"] + user_data["bank_asset_value"]
+        user_data["Loan_to_Income_Ratio"] = user_data["loan_amount"] / (user_data["income_annum"] + 1)
+        user_data["cibil_score_sq"] = user_data["cibil_score"] ** 2
         
         user_data = pd.get_dummies(user_data, drop_first=True)
         for col in training_columns:
@@ -170,9 +166,9 @@ with tab_form:
         user_scaled = scaler.transform(user_data)
         
         pred = rf_model.predict(user_scaled)[0]
-        pred_text = "Approved ✅" if pred == 1 else "Rejected ❌"
-        pred_text_pdf = "Approved" if pred == 1 else "Rejected"
-        risk_lvl, risk_factors, conditions = calculate_risk(dti, credit_score, loan_amount)
+        pred_text = "Approved ✅" if pred == 0 else "Rejected ❌"
+        pred_text_pdf = "Approved" if pred == 0 else "Rejected"
+        risk_lvl, risk_factors, conditions = calculate_risk(cibil_score, user_data["Loan_to_Income_Ratio"][0], loan_amount)
         
         st.divider()
         st.subheader("Results")
@@ -189,7 +185,7 @@ with tab_form:
         # Show visualizations on screen
         st.divider()
         st.write("### Data Visualizations")
-        app_vals = {'income': app_income, 'credit': credit_score, 'loan': loan_amount, 'savings': savings}
+        app_vals = {'income': income_annum, 'credit': cibil_score, 'loan': loan_amount, 'assets': bank_assets}
         
         session_id = str(uuid.uuid4())
         gauge_file = f"st_gauge_{session_id}.png"

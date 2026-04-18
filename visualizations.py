@@ -25,14 +25,14 @@ def create_risk_gauge(risk_level, filename):
 
 def create_radar_chart(applicant_vals, hist_data, filename):
     # Get averages for Approved loans to compare against
-    approved_hist = hist_data[hist_data['Loan_Approved'] == 'Yes']
-    avg_income = approved_hist['Applicant_Income'].mean()
-    avg_credit = approved_hist['Credit_Score'].mean()
-    avg_loan = approved_hist['Loan_Amount'].mean()
-    avg_savings = approved_hist['Savings'].mean()
+    approved_hist = hist_data[hist_data['loan_status'] == 'Approved']
+    avg_income = approved_hist['income_annum'].mean()
+    avg_credit = approved_hist['cibil_score'].mean()
+    avg_loan = approved_hist['loan_amount'].mean()
+    avg_assets = approved_hist['bank_asset_value'].mean()
     
     # Normalize values (Applicant vs Average Approved)
-    categories = ['Income', 'Credit Score', 'Loan Amount', 'Savings']
+    categories = ['Income', 'CIBIL Score', 'Loan Amount', 'Bank Assets']
     avg_vals = [1.0, 1.0, 1.0, 1.0] # Baseline is 1.0
     
     # Applicant normalized values
@@ -40,7 +40,7 @@ def create_radar_chart(applicant_vals, hist_data, filename):
         applicant_vals['income'] / max(avg_income, 1),
         applicant_vals['credit'] / max(avg_credit, 1),
         applicant_vals['loan'] / max(avg_loan, 1),
-        applicant_vals['savings'] / max(avg_savings, 1)
+        applicant_vals['assets'] / max(avg_assets, 1)
     ]
     
     N = len(categories)
@@ -67,7 +67,7 @@ def create_radar_chart(applicant_vals, hist_data, filename):
 
 def create_distribution_plot(loan_amount, hist_data, filename):
     plt.figure(figsize=(6, 4))
-    sns.kdeplot(hist_data['Loan_Amount'].dropna(), fill=True, color="teal")
+    sns.kdeplot(hist_data['loan_amount'].dropna(), fill=True, color="teal")
     plt.axvline(loan_amount, color='red', linestyle='dashed', linewidth=2, label=f"Applicant: ₹{loan_amount}")
     plt.title("Requested Loan Amount vs Historical Distribution")
     plt.xlabel("Loan Amount (INR)")
