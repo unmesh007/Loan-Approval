@@ -12,6 +12,85 @@ from fpdf import FPDF
 
 st.set_page_config(page_title="Advanced Loan & Risk Analyzer", layout="wide")
 
+# Custom CSS for Dynamic Multi-color Gradient Background & Glassmorphism
+st.markdown("""
+<style>
+/* Target the main app container */
+.stApp {
+    background: radial-gradient(circle at 50% 0%, #2c5364 0%, #203a43 50%, #111e3b 100%);
+    background-attachment: fixed;
+    background-size: 400% 400%;
+    animation: gradientBG 5s ease infinite;
+}
+
+[data-testid="stHeader"] {
+    background: transparent !important;
+}
+
+@keyframes gradientBG {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* Glassmorphism for inputs and forms */
+div[data-testid="stForm"] {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 5px solid rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    padding: 2rem;
+    box-shadow: 0 8px 50px 0 rgba(0, 0, 0, 0.6);
+}
+
+/* Input boxes */
+div[data-baseweb="input"] > div, 
+div[data-baseweb="select"] > div,
+div[data-baseweb="number-input"] > div {
+    background: rgba(255, 255, 255, 0.1) !important;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 8px !important;
+    color: white !important;
+}
+
+/* Text inside inputs */
+div[data-baseweb="input"] input, 
+div[data-baseweb="select"] div,
+div[data-baseweb="number-input"] input,
+.stTextInput input, 
+.stNumberInput input {
+    color: white !important;
+    background-color: transparent !important;
+}
+
+/* Form Submit Button */
+button[kind="primaryFormSubmit"], button[data-testid="baseButton-primaryFormSubmit"] {
+    background: rgba(255, 255, 255, 0.15) !important;
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    border-radius: 8px !important;
+    color: white !important;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+button[kind="primaryFormSubmit"]:hover, button[data-testid="baseButton-primaryFormSubmit"]:hover {
+    background: rgba(255, 255, 255, 0.25) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+.stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
+    font-size: 1.5rem; /* Increase this number to make it bigger */
+    font-weight: bold;  /* Optional: makes the text bold */
+}
+</style>
+""", unsafe_allow_html=True)
+
+
 # ==========================================
 # 1. LOAD PRE-TRAINED CACHED MODEL
 # ==========================================
@@ -44,11 +123,15 @@ from visualizations import create_risk_gauge, create_radar_chart, create_distrib
 # ==========================================
 # 2. PDF REPORT GENERATOR
 # ==========================================
-def calculate_risk(cibil, lti, loan_amount):
+def calculate_risk(cibil, lti, dti, loan_amount):
     points = 0
     factors = []
+    
     if lti > 6: points += 3; factors.append("Extremely High Loan-to-Income Multiple")
     elif lti > 3: points += 1; factors.append("High Loan-to-Income Multiple")
+        
+    if dti > 0.43: points += 3; factors.append("High Debt-to-Income Ratio")
+    elif dti > 0.36: points += 1; factors.append("Elevated Debt-to-Income Ratio")
         
     if cibil < 500: points += 3; factors.append("Poor CIBIL Score")
     elif cibil < 700: points += 1; factors.append("Fair CIBIL Score")
@@ -115,7 +198,7 @@ def create_pdf(name, app_vals, pred_text, risk, conditions):
 # 4. STREAMLIT UI
 # ==========================================
 st.title("🏦 Advanced Loan & Risk Analyzer")
-st.write("Complete with full data visualization integration.")
+st.write("With full data visualization integration.")
 
 tab_form, tab_dash = st.tabs(["📝 New Application", "📊 Model Dashboard"])
 
@@ -133,6 +216,7 @@ with tab_form:
         with col2:
             loan_term = st.number_input("Loan Term (Months)", min_value=0, step=12)
             cibil_score = st.number_input("CIBIL Score", min_value=300, max_value=900, step=10)
+            existing_debt = st.number_input("Existing Annual Debt (INR)", min_value=0, step=10000)
             res_assets = st.number_input("Residential Assets", min_value=0, step=100000)
             com_assets = st.number_input("Commercial Assets", min_value=0, step=100000)
             lux_assets = st.number_input("Luxury Assets", min_value=0, step=100000)
@@ -172,10 +256,18 @@ with tab_form:
         pred = rf_model.predict(user_scaled)[0]
         pred_text = "Approved ✅" if pred == 0 else "Rejected ❌"
         pred_text_pdf = "Approved" if pred == 0 else "Rejected"
-        risk_lvl, risk_factors, conditions = calculate_risk(cibil_score, user_data["Loan_to_Income_Ratio"][0], loan_amount)
+        
+        calculated_dti = existing_debt / max(1, income_annum)
+        risk_lvl, risk_factors, conditions = calculate_risk(cibil_score, user_data["Loan_to_Income_Ratio"][0], calculated_dti, loan_amount)
         
         st.divider()
         st.subheader("Results")
+        col_m1, col_m2 = st.columns(2)
+        col_m1.metric("Loan-to-Income Multiple", f"{user_data['Loan_to_Income_Ratio'][0]:.2f}")
+        col_m2.metric("Debt-to-Income Ratio (DTI)", f"{calculated_dti:.2%}")
+        
+        st.divider()
+        
         col_res1, col_res2 = st.columns(2)
         with col_res1:
             st.success(f"**Prediction:** {pred_text}")
@@ -226,9 +318,9 @@ with tab_dash:
     
     st.write("---")
     cm = confusion_matrix(y_test, test_preds)
-    fig, ax = plt.subplots(figsize=(5, 3))
+    fig, ax = plt.subplots(figsize=(3, 2))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax)
     ax.set_title("Confusion Matrix")
     ax.set_xlabel("Predicted")
     ax.set_ylabel("Actual")
-    st.pyplot(fig)
+    st.pyplot(fig, use_container_width=False)
