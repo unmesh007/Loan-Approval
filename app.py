@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from math import pi
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import accuracy_score, precision_score, recall_score, confusion_matrix
@@ -52,6 +52,11 @@ def prepare_model():
 
     X_raw["DTI_Ratio_sq"] = X_raw["DTI_Ratio"] ** 2
     X_raw["Credit_Score_sq"] = X_raw["Credit_Score"] ** 2
+    
+    # Smarter Feature Engineering
+    X_raw["Total_Income"] = X_raw["Applicant_Income"] + X_raw["Coapplicant_Income"]
+    X_raw["Loan_to_Income_Ratio"] = X_raw["Loan_Amount"] / (X_raw["Total_Income"] + 1)
+    
     X_raw = X_raw.drop(columns=["Credit_Score", "DTI_Ratio"])
 
     X = pd.get_dummies(X_raw, drop_first=True)
@@ -63,8 +68,21 @@ def prepare_model():
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
 
-    model = RandomForestClassifier(n_estimators=100, random_state=42)
-    model.fit(X_train_scaled, y_train)
+    # 1. Handle Data Imbalance (class_weight='balanced')
+    rf_base = RandomForestClassifier(random_state=42, class_weight='balanced')
+    
+    # 2. Hyperparameter Tuning (GridSearchCV)
+    param_grid = {
+        'n_estimators': [50, 100, 150],
+        'max_depth': [None, 10, 20],
+        'min_samples_split': [2, 5, 10]
+    }
+    
+    grid_search = GridSearchCV(estimator=rf_base, param_grid=param_grid, cv=3, n_jobs=-1, scoring='accuracy')
+    grid_search.fit(X_train_scaled, y_train)
+    
+    # Select the optimal model found
+    model = grid_search.best_estimator_
 
     return model, scaler, num_imputer, cat_imputer, le_edu, training_columns, X_test_scaled, y_test, historical_raw
 
@@ -271,6 +289,11 @@ with tab_form:
         user_data["Education_Level"] = le_edu.transform(user_data["Education_Level"])
         user_data["DTI_Ratio_sq"] = user_data["DTI_Ratio"] ** 2
         user_data["Credit_Score_sq"] = user_data["Credit_Score"] ** 2
+        
+        # Apply the exact same engineered features to user input
+        user_data["Total_Income"] = user_data["Applicant_Income"] + user_data["Coapplicant_Income"]
+        user_data["Loan_to_Income_Ratio"] = user_data["Loan_Amount"] / (user_data["Total_Income"] + 1)
+        
         user_data = user_data.drop(columns=["Credit_Score", "DTI_Ratio"])
         
         user_data = pd.get_dummies(user_data, drop_first=True)
