@@ -5,3 +5,4 @@ scikit-learn
 fpdf
 matplotlib
 seaborn
+joblib
