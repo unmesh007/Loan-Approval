@@ -12,83 +12,257 @@ from fpdf import FPDF
 
 st.set_page_config(page_title="Advanced Loan & Risk Analyzer", layout="wide")
 
-# Custom CSS for Dynamic Multi-color Gradient Background & Glassmorphism
-st.markdown("""
-<style>
-/* Target the main app container */
-.stApp {
-    background: radial-gradient(circle at 50% 0%, #2c5364 0%, #203a43 50%, #111e3b 100%);
-    background-attachment: fixed;
-    background-size: 400% 400%;
-    animation: gradientBG 5s ease infinite;
-}
+# ==========================================
+# DYNAMIC THEME ENGINE
+# ==========================================
+def get_dynamic_theme(risk_level):
+    """
+    Returns the custom CSS with gradient colors based on the current risk level.
+    Uses dark, premium tones to ensure glassmorphism and white text remain readable.
+    """
+    if risk_level == "High Risk":
+        # Deep Reds
+        color1, color2, color3 = "#5e1414", "#300606", "#140000"
+    elif risk_level == "Medium Risk":
+        # Deep Yellows / Golds
+        color1, color2, color3 = "#5e4b14", "#302506", "#141100"
+    elif risk_level == "Low Risk":
+        # Deep Greens
+        color1, color2, color3 = "#145e26", "#063011", "#001404"
+    else:
+        # Neutral / Default (Black, Grey, White)
+        color1, color2, color3 = "#363636", "#1c1c1c", "#0a0a0a"
 
-[data-testid="stHeader"] {
-    background: transparent !important;
-}
+    css = f"""
+    <style>
+    /* Target the main app container */
+    .stApp {{
+        background: radial-gradient(circle at 50% 0%, {color1} 0%, {color2} 50%, {color3} 100%);
+        background-attachment: fixed;
+        background-size: 400% 400%;
+        animation: gradientBG 5s ease infinite;
+        transition: background 1.5s ease-in-out;
+    }}
 
-@keyframes gradientBG {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-}
+    [data-testid="stHeader"] {{
+        background: transparent !important;
+    }}
 
-/* Glassmorphism for inputs and forms */
-div[data-testid="stForm"] {
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 5px solid rgba(255, 255, 255, 0.1);
-    border-radius: 15px;
-    padding: 2rem;
-    box-shadow: 0 8px 50px 0 rgba(0, 0, 0, 0.6);
-}
+    @keyframes gradientBG {{
+        0% {{ background-position: 0% 50%; }}
+        50% {{ background-position: 100% 50%; }}
+        100% {{ background-position: 0% 50%; }}
+    }}
 
-/* Input boxes */
-div[data-baseweb="input"] > div, 
-div[data-baseweb="select"] > div,
-div[data-baseweb="number-input"] > div {
-    background: rgba(255, 255, 255, 0.1) !important;
-    backdrop-filter: blur(5px);
-    -webkit-backdrop-filter: blur(5px);
-    border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    border-radius: 8px !important;
-    color: white !important;
-}
+    /* Glassmorphism for inputs and forms */
+    div[data-testid="stForm"] {{
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 5px solid rgba(255, 255, 255, 0.1);
+        border-radius: 15px;
+        padding: 2rem;
+        box-shadow: 0 8px 50px 0 rgba(0, 0, 0, 0.6);
+    }}
 
-/* Text inside inputs */
-div[data-baseweb="input"] input, 
-div[data-baseweb="select"] div,
-div[data-baseweb="number-input"] input,
-.stTextInput input, 
-.stNumberInput input {
-    color: white !important;
-    background-color: transparent !important;
-}
+    /* Input boxes */
+    div[data-baseweb="input"] > div, 
+    div[data-baseweb="select"] > div,
+    div[data-baseweb="number-input"] > div {{
+        background: rgba(255, 255, 255, 0.1) !important;
+        backdrop-filter: blur(5px);
+        -webkit-backdrop-filter: blur(5px);
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        border-radius: 8px !important;
+        color: white !important;
+    }}
 
-/* Form Submit Button */
-button[kind="primaryFormSubmit"], button[data-testid="baseButton-primaryFormSubmit"] {
-    background: rgba(255, 255, 255, 0.15) !important;
-    backdrop-filter: blur(5px);
-    border: 1px solid rgba(255, 255, 255, 0.3) !important;
-    border-radius: 8px !important;
-    color: white !important;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-}
+    /* Text inside inputs */
+    div[data-baseweb="input"] input, 
+    div[data-baseweb="select"] div,
+    div[data-baseweb="number-input"] input,
+    .stTextInput input, 
+    .stNumberInput input {{
+        color: white !important;
+        background-color: transparent !important;
+    }}
 
-button[kind="primaryFormSubmit"]:hover, button[data-testid="baseButton-primaryFormSubmit"]:hover {
-    background: rgba(255, 255, 255, 0.25) !important;
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-}
+    /* Form Submit Button */
+    button[kind="primaryFormSubmit"], button[data-testid="baseButton-primaryFormSubmit"] {{
+        background: rgba(255, 255, 255, 0.15) !important;
+        backdrop-filter: blur(5px);
+        border: 1px solid rgba(255, 255, 255, 0.3) !important;
+        border-radius: 8px !important;
+        color: white !important;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }}
 
-.stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
-    font-size: 1.5rem; /* Increase this number to make it bigger */
-    font-weight: bold;  /* Optional: makes the text bold */
-}
-</style>
-""", unsafe_allow_html=True)
+    button[kind="primaryFormSubmit"]:hover, button[data-testid="baseButton-primaryFormSubmit"]:hover {{
+        background: rgba(255, 255, 255, 0.25) !important;
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }}
+
+    .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {{
+        font-size: 1.5rem;
+        font-weight: bold;
+    }}
+
+    /* --- Card Navigation Style for Tabs --- */
+    .stTabs [data-baseweb="tab-list"] {{
+        background: rgba(18, 15, 23, 0.6) !important;
+        padding: 10px;
+        border-radius: 16px;
+        gap: 15px;
+        border: 1px solid rgba(132, 0, 255, 0.2);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }}
+
+    .stTabs [data-baseweb="tab"] {{
+        background-color: transparent !important;
+        border-radius: 10px !important;
+        padding: 5px 20px !important;
+        border: 1px solid transparent !important;
+        transition: all 0.3s ease;
+    }}
+
+    /* Hover effect on unselected tabs */
+    .stTabs [data-baseweb="tab"]:hover {{
+        background: rgba(132, 0, 255, 0.1) !important;
+        border: 1px solid rgba(132, 0, 255, 0.3) !important;
+    }}
+
+    /* Active Selected Tab */
+    .stTabs [aria-selected="true"] {{
+        background: linear-gradient(90deg, #8400ff, #b366ff) !important;
+        box-shadow: 0 4px 15px rgba(132, 0, 255, 0.4) !important;
+        border: 1px solid rgba(255,255,255,0.3) !important;
+        border-bottom-color: rgba(255,255,255,0.3) !important;
+    }}
+
+    /* --- Metric Cards Style --- */
+    [data-testid="stMetric"] {{
+        background-color: rgba(18, 15, 23, 0.7);
+        border-radius: 16px;
+        border: 1px solid rgba(132, 0, 255, 0.2);
+        box-shadow: 0 0 15px rgba(132, 0, 255, 0.05),
+                    inset 0 0 15px rgba(132, 0, 255, 0.02);
+        padding: 1.5rem;
+        transition: all 0.3s ease-in-out;
+    }}
+
+    [data-testid="stMetric"]:hover {{
+        border-color: rgba(132, 0, 255, 0.6);
+        box-shadow: 0 0 25px rgba(132, 0, 255, 0.2),
+                    inset 0 0 25px rgba(132, 0, 255, 0.1);
+        transform: translateY(-5px);
+    }}
+
+    [data-testid="stMetricValue"], [data-testid="stMetricLabel"] {{
+        color: white !important;
+    }}
+    </style>
+    """
+    return css
+
+# Initialize session state for the dynamic theme
+if 'current_theme' not in st.session_state:
+    st.session_state.current_theme = "Neutral"
+
+# Placeholder at the top — CSS is injected here at the END of the script
+# so it always captures the latest session_state after form submission.
+css_placeholder = st.empty()
+
+def animated_title(text):
+    """
+    Replicates the GSAP SplitText incoming animation using pure CSS and Python.
+    Animates characters from y: 40px and opacity: 0 to y: 0px and opacity: 1.
+    """
+    html_content = """
+    <style>
+    .split-char {
+        display: inline-block;
+        opacity: 0;
+        transform: translateY(40px);
+        animation: textIn 1.25s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
+    }
+    @keyframes textIn {
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    .animated-title-container {
+        font-size: 2.5rem;
+        font-weight: 700;
+        font-family: "Source Sans Pro", sans-serif;
+        margin-bottom: 1rem;
+        color: inherit;
+    }
+    </style>
+    <div class="animated-title-container">
+    """
+    
+    # Base delay matches your GSAP 50ms (0.05s) stagger configuration
+    delay = 0.05 
+    for char in text:
+        if char == " ":
+            html_content += f'<span class="split-char" style="animation-delay: {delay}s;">&nbsp;</span>'
+        else:
+            html_content += f'<span class="split-char" style="animation-delay: {delay}s;">{char}</span>'
+        delay += 0.05 
+        
+    html_content += "</div>"
+    
+    # Inject into Streamlit
+    st.markdown(html_content, unsafe_allow_html=True)
+
+def apply_bento_form_style():
+    """
+    Injects CSS to make the native Streamlit form look like a glowing Bento card.
+    """
+    st.markdown(
+        """
+        <style>
+        /* Target the main Streamlit form container */
+        [data-testid="stForm"] {
+            background-color: #100F19;
+            border-radius: 16px;
+            border: 1px solid rgba(132, 0, 255, 0.2);
+            box-shadow: 0 0 20px rgba(132, 0, 255, 0.1),
+                        inset 0 0 20px rgba(132, 0, 255, 0.05);
+            padding: 2rem;
+            transition: all 0.3s ease-in-out;
+        }
+        
+        /* Add a subtle hover glow */
+        [data-testid="stForm"]:hover {
+            border-color: rgba(132, 0, 255, 0.6);
+            box-shadow: 0 0 30px rgba(132, 0, 255, 0.2),
+                        inset 0 0 30px rgba(132, 0, 255, 0.1);
+            transform: translateY(-2px);
+        }
+
+        /* Style the submit button to match the theme */
+        [data-testid="stForm"] button {
+            background: linear-gradient(90deg, #8400ff, #b366ff);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            transition: transform 0.2s;
+        }
+        
+        [data-testid="stForm"] button:hover {
+            transform: scale(1.02);
+            box-shadow: 0 0 15px rgba(132, 0, 255, 0.5);
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+
 
 
 # ==========================================
@@ -197,12 +371,13 @@ def create_pdf(name, app_vals, pred_text, risk, conditions):
 # ==========================================
 # 4. STREAMLIT UI
 # ==========================================
-st.title("🏦 Advanced Loan & Risk Analyzer")
+animated_title("🏦 Advanced Loan & Risk Analyzer")
 st.write("With full data visualization integration.")
 
 tab_form, tab_dash = st.tabs(["📝 New Application", "📊 Model Dashboard"])
 
 with tab_form:
+    apply_bento_form_style()
     with st.form("input_form"):
         col1, col2 = st.columns(2)
         with col1:
@@ -259,6 +434,11 @@ with tab_form:
         
         calculated_dti = existing_debt / max(1, income_annum)
         risk_lvl, risk_factors, conditions = calculate_risk(cibil_score, user_data["Loan_to_Income_Ratio"][0], calculated_dti, loan_amount)
+        
+        # --- THEME UPDATE TRIGGER ---
+        # Update session_state so the CSS placeholder at the bottom of the file
+        # re-renders with the correct risk-level colour on this same run.
+        st.session_state.current_theme = risk_lvl
         
         st.divider()
         st.subheader("Results")
@@ -324,3 +504,11 @@ with tab_dash:
     ax.set_xlabel("Predicted")
     ax.set_ylabel("Actual")
     st.pyplot(fig, use_container_width=False)
+
+# ==========================================
+# INJECT CSS DYNAMICALLY
+# ==========================================
+# Written into the placeholder defined at the top of the file.
+# Placing it here (bottom of script) ensures it always reads the LATEST
+# session_state value — including any risk level set inside the form block.
+css_placeholder.markdown(get_dynamic_theme(st.session_state.current_theme), unsafe_allow_html=True)
