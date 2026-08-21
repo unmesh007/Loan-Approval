@@ -13,9 +13,6 @@ import io
 
 st.set_page_config(page_title="Advanced Loan & Risk Analyzer", layout="wide")
 
-# ==========================================
-# DYNAMIC THEME ENGINE
-# ==========================================
 def get_dynamic_theme(risk_level="Neutral", approved=None):
     """
     Returns custom CSS with a two-color diagonal gradient that reflects BOTH
@@ -31,36 +28,32 @@ def get_dynamic_theme(risk_level="Neutral", approved=None):
     Uses deep/dark versions of each colour so glassmorphism + white text stay readable.
     """
 
-    # ── Risk colour (left/top side of gradient) ──────────────────────────────
     if risk_level == "High Risk":
-        risk_dark   = "#4a0a0a"   # deep crimson
+        risk_dark   = "#4a0a0a"   
         risk_mid    = "#2a0404"
-        risk_accent = "#ff2d2d"   # bright red for the animated shimmer
+        risk_accent = "#ff2d2d"   
     elif risk_level == "Medium Risk":
-        risk_dark   = "#4a3a00"   # deep gold
+        risk_dark   = "#4a3a00" 
         risk_mid    = "#2a2000"
-        risk_accent = "#f5a623"   # amber for shimmer
+        risk_accent = "#f5a623"   
     elif risk_level == "Low Risk":
-        risk_dark   = "#003d12"   # deep forest green
+        risk_dark   = "#003d12" 
         risk_mid    = "#001f09"
-        risk_accent = "#1db954"   # vibrant green for shimmer
+        risk_accent = "#1db954"   
     else:
-        # Neutral / initial default — pure black & white palette
         risk_dark   = "#1a1a1a"
         risk_mid    = "#0a0a0a"
         risk_accent = "#888888"
 
-    # ── Approval colour (right/bottom side of gradient) ───────────────────────
     if approved is None:
-        # No prediction yet → keep single-tone (same as risk, no second hue)
         appr_dark   = risk_mid
         appr_accent = risk_accent
     elif approved:
-        appr_dark   = "#001a3d"   # deep navy blue
-        appr_accent = "#0057ff"   # electric blue shimmer
+        appr_dark   = "#001a3d"
+        appr_accent = "#0057ff"
     else:
-        appr_dark   = "#3d0000"   # deep dark red
-        appr_accent = "#cc0000"   # vivid red shimmer
+        appr_dark   = "#3d0000"   
+        appr_accent = "#cc0000"   
 
     css = f"""
     <style>
@@ -216,15 +209,10 @@ def get_dynamic_theme(risk_level="Neutral", approved=None):
     """
     return css
 
-# Initialize session state for the dynamic theme
-# Stores both risk level and approval decision so the gradient is fully informed.
 if 'current_theme' not in st.session_state:
     st.session_state.current_theme = "Neutral"
 if 'current_approved' not in st.session_state:
-    st.session_state.current_approved = None   # None = no prediction yet
-
-# Placeholder at the top — CSS is injected here at the END of the script
-# so it always captures the latest session_state after form submission.
+    st.session_state.current_approved = None
 css_placeholder = st.empty()
 
 def animated_title(text):
@@ -257,7 +245,6 @@ def animated_title(text):
     <div class="animated-title-container">
     """
     
-    # Base delay matches your GSAP 50ms (0.05s) stagger configuration
     delay = 0.05 
     for char in text:
         if char == " ":
@@ -268,7 +255,6 @@ def animated_title(text):
         
     html_content += "</div>"
     
-    # Inject into Streamlit
     st.markdown(html_content, unsafe_allow_html=True)
 
 def apply_bento_form_style():
@@ -316,11 +302,6 @@ def apply_bento_form_style():
     )
 
 
-
-
-# ==========================================
-# 1. LOAD PRE-TRAINED CACHED MODEL
-# ==========================================
 @st.cache_resource
 def load_assets():
     try:
@@ -341,15 +322,9 @@ def load_assets():
         
     return assets["model"], assets["scaler"], assets["le_edu"], assets["training_columns"], assets["X_test_scaled"], assets["y_test"], hist_data
 
-# Load Everything
 rf_model, scaler, le_edu, training_columns, X_test_scaled, y_test, hist_data = load_assets()
 
-
 from visualizations import create_risk_gauge, create_radar_chart, create_distribution_plot, create_feature_importance
-
-# ==========================================
-# 2. PDF REPORT GENERATOR
-# ==========================================
 def calculate_risk(cibil, lti, dti, loan_amount):
     points = 0
     factors = []
@@ -370,7 +345,6 @@ def calculate_risk(cibil, lti, dti, loan_amount):
     return "Low Risk", ["None"], ["Standard Terms"]
 
 def create_pdf(name, app_vals, pred_text, risk, conditions):
-    # 1. Generate Images
     session_id = str(uuid.uuid4())
     gauge_file = f"temp_gauge_{session_id}.png"
     radar_file = f"temp_radar_{session_id}.png"
@@ -384,7 +358,6 @@ def create_pdf(name, app_vals, pred_text, risk, conditions):
         create_feature_importance(rf_model, training_columns, feat_file)
         
         pdf = FPDF()
-        # PAGE 1: Text
         pdf.add_page()
         pdf.set_font("Arial", 'B', 16)
         pdf.cell(200, 10, text="Comprehensive Loan Analysis Report", new_x="LMARGIN", new_y="NEXT", align='C')
@@ -395,25 +368,21 @@ def create_pdf(name, app_vals, pred_text, risk, conditions):
         pdf.cell(200, 10, text="Conditions:", new_x="LMARGIN", new_y="NEXT")
         for c in conditions: pdf.cell(200, 8, text=f" - {c}", new_x="LMARGIN", new_y="NEXT")
         
-        # PAGE 1: Add first two visuals (Gauge and Radar)
         pdf.image(gauge_file, x=10, y=80, w=80)
         pdf.image(radar_file, x=100, y=80, w=100)
         
-        # PAGE 2: Add bottom visuals (Distribution and Features)
         pdf.add_page()
         pdf.cell(200, 10, text="Visual Context & AI Transparency", new_x="LMARGIN", new_y="NEXT", align='C')
         pdf.image(dist_file, x=20, y=30, w=160)
         pdf.image(feat_file, x=20, y=140, w=160)
     
         try:
-            # Standard attempt
             pdf_output = pdf.output(dest='S').encode('latin-1')
         except UnicodeEncodeError:
             st.warning("Certain special characters were found and adjusted for PDF compatibility.")
             pdf_output = pdf.output(dest='S').encode('latin-1', errors='replace')
             
     finally:
-        # Clean up temp images
         for file in [gauge_file, radar_file, dist_file, feat_file]:
             if os.path.exists(file): 
                 os.remove(file)
@@ -421,9 +390,6 @@ def create_pdf(name, app_vals, pred_text, risk, conditions):
     return pdf_output
 
 
-# ==========================================
-# 4. STREAMLIT UI
-# ==========================================
 animated_title("🏦 Advanced Loan & Risk Analyzer")
 st.write("With full data visualization integration.")
 
@@ -441,8 +407,6 @@ with tab_form:
             
             if not df_single.empty:
                 row = df_single.iloc[0]
-                # Try to match typical column names in the dataset
-                # The dataset uses: no_of_dependents, education, self_employed, income_annum, loan_amount, loan_term, cibil_score, residential_assets_value, commercial_assets_value, luxury_assets_value, bank_asset_value
                 st.session_state.prefill = {
                     'dependents': int(row.get('no_of_dependents', 0)) if 'no_of_dependents' in df_single.columns else 0,
                     'education': 'Graduate' if ('education' in df_single.columns and 'Not' not in str(row.get('education', ''))) else 'Not Graduate',
@@ -470,7 +434,6 @@ with tab_form:
             app_name = st.text_input("Applicant Name / ID", "")
             dependents = st.number_input("No. of Dependents", min_value=0, step=1, value=prefill.get('dependents', 0))
             
-            # Helper to get the correct index for selectbox prefill
             edu_index = 0 if prefill.get('education', 'Graduate') == 'Graduate' else 1
             se_index = 0 if prefill.get('self_employed', 'Yes') == 'Yes' else 1
             
@@ -507,7 +470,6 @@ with tab_form:
         
         user_data["education"] = le_edu.transform(user_data["education"])
         
-        # Apply the exact same engineered features to user input
         user_data["Total_Assets"] = user_data["residential_assets_value"] + user_data["commercial_assets_value"] + user_data["luxury_assets_value"] + user_data["bank_asset_value"]
         user_data["Loan_to_Income_Ratio"] = user_data["loan_amount"] / (user_data["income_annum"] + 1)
         user_data["cibil_score_sq"] = user_data["cibil_score"] ** 2
@@ -526,11 +488,9 @@ with tab_form:
         calculated_dti = existing_debt / max(1, income_annum)
         risk_lvl, risk_factors, conditions = calculate_risk(cibil_score, user_data["Loan_to_Income_Ratio"][0], calculated_dti, loan_amount)
         
-        # --- THEME UPDATE TRIGGER ---
-        # Store BOTH risk level and approval decision so the CSS placeholder
-        # at the bottom of the file can render the correct two-colour gradient.
+        
         st.session_state.current_theme    = risk_lvl
-        st.session_state.current_approved = (pred == 0)  # True = Approved, False = Rejected
+        st.session_state.current_approved = (pred == 0)  
         
         st.divider()
         st.subheader("Results")
@@ -550,7 +510,6 @@ with tab_form:
             st.write("**Suggested Conditions:**")
             for c in conditions: st.write(f"- {c}")
 
-        # Show visualizations on screen
         st.divider()
         st.write("### Data Visualizations")
         app_vals = {'income': income_annum, 'credit': cibil_score, 'loan': loan_amount, 'assets': bank_assets}
@@ -576,7 +535,6 @@ with tab_form:
         for f in [gauge_file, dist_file, radar_file, feat_file]:
             if os.path.exists(f): os.remove(f)
         
-        # PDF Generator
         pdf_file = create_pdf(app_name, app_vals, pred_text_pdf, risk_lvl, conditions)
         st.download_button("📄 Download Complete PDF Report (with Charts)", data=pdf_file, file_name="Loan_Visual_Report.pdf", type="primary")
 
@@ -615,13 +573,10 @@ with tab_batch:
             
             if st.button("Run Batch Analysis"):
                 with st.spinner("Processing applications..."):
-                    # Create a copy for processing
                     proc_df = batch_df.copy()
                     
-                    # Clean column names
                     proc_df.columns = proc_df.columns.str.strip()
                     
-                    # Ensure required columns are present or set defaults
                     required_cols = [
                         'no_of_dependents', 'education', 'self_employed', 'income_annum', 
                         'loan_amount', 'loan_term', 'cibil_score', 'residential_assets_value', 
@@ -632,17 +587,13 @@ with tab_batch:
                     if missing_cols:
                         st.error(f"Missing required columns in uploaded file: {', '.join(missing_cols)}")
                     else:
-                        # Clean categorical data
                         cat_cols = proc_df.select_dtypes(include=["object"]).columns
                         for c in cat_cols:
                             proc_df[c] = proc_df[c].str.strip()
                             
-                        # Encode education
-                        # Note: if there are unknown labels, transform will fail. We use a safe approach.
                         proc_df["education"] = proc_df["education"].apply(lambda x: x if x in le_edu.classes_ else le_edu.classes_[0])
                         proc_df["education"] = le_edu.transform(proc_df["education"])
                         
-                        # Feature engineering
                         proc_df["Total_Assets"] = proc_df["residential_assets_value"] + proc_df["commercial_assets_value"] + proc_df["luxury_assets_value"] + proc_df["bank_asset_value"]
                         proc_df["Loan_to_Income_Ratio"] = proc_df["loan_amount"] / (proc_df["income_annum"] + 1)
                         proc_df["cibil_score_sq"] = proc_df["cibil_score"] ** 2
@@ -652,16 +603,12 @@ with tab_batch:
                             if col not in proc_df.columns: proc_df[col] = 0
                         proc_df = proc_df[training_columns]
                         
-                        # Scale
                         batch_scaled = scaler.transform(proc_df)
                         
-                        # Predict
                         batch_preds = rf_model.predict(batch_scaled)
                         
-                        # Add results to original dataframe
                         batch_df['Prediction'] = ["Approved ✅" if p == 0 else "Rejected ❌" for p in batch_preds]
                         
-                        # Add risk levels
                         risk_levels = []
                         for idx, row in batch_df.iterrows():
                             cibil = row.get('cibil_score', 0)
@@ -677,7 +624,6 @@ with tab_batch:
                         st.write("### Analysis Results")
                         st.dataframe(batch_df)
                         
-                        # Provide download link for Excel
                         output = io.BytesIO()
                         with pd.ExcelWriter(output, engine='openpyxl') as writer:
                             batch_df.to_excel(writer, index=False, sheet_name='Analysis_Results')
@@ -693,12 +639,6 @@ with tab_batch:
             st.error(f"Error processing file: {e}")
 
 
-# ==========================================
-# INJECT CSS DYNAMICALLY
-# ==========================================
-# Written into the placeholder defined at the top of the file.
-# Placing it here (bottom of script) ensures it always reads the LATEST
-# session_state value — including any risk level set inside the form block.
 css_placeholder.markdown(
     get_dynamic_theme(
         st.session_state.current_theme,

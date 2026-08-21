@@ -13,13 +13,13 @@ def train_and_save():
         print("Error: 'loan_approval_dataset.csv' not found.")
         return
         
-    # Strip spaces from column names
+    
     df.columns = df.columns.str.strip()
     
     if 'loan_id' in df.columns:
         df = df.drop('loan_id', axis=1)
 
-    # Strip spaces from categorical columns
+    
     cat_cols_raw = df.select_dtypes(include=["object"]).columns
     for col in cat_cols_raw:
         df[col] = df[col].str.strip()
@@ -42,7 +42,7 @@ def train_and_save():
     le_edu = LabelEncoder()
     X_raw["education"] = le_edu.fit_transform(X_raw["education"])
     
-    # Smarter Feature Engineering
+    
     X_raw["Total_Assets"] = X_raw["residential_assets_value"] + X_raw["commercial_assets_value"] + X_raw["luxury_assets_value"] + X_raw["bank_asset_value"]
     X_raw["Loan_to_Income_Ratio"] = X_raw["loan_amount"] / (X_raw["income_annum"] + 1)
     X_raw["cibil_score_sq"] = X_raw["cibil_score"] ** 2
@@ -56,10 +56,10 @@ def train_and_save():
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
 
-    # 1. Handle Data Imbalance (class_weight='balanced')
+    
     rf_base = RandomForestClassifier(random_state=42, class_weight='balanced')
     
-    # 2. Hyperparameter Tuning (GridSearchCV)
+    
     param_grid = {
         'n_estimators': [50, 100, 150],
         'max_depth': [None, 10, 20],
@@ -73,7 +73,7 @@ def train_and_save():
     model = grid_search.best_estimator_
     print(f"Best parameters: {grid_search.best_params_}")
 
-    # Pack what the app needs into a dictionary
+    
     artifacts = {
         "model": model, 
         "scaler": scaler, 

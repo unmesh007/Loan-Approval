@@ -6,7 +6,7 @@ from math import pi
 def create_risk_gauge(risk_level, filename):
     plt.figure(figsize=(4, 4))
     
-    # Assign a score and color based on risk
+    
     if risk_level == "Low Risk":
         score, color, remainder_color = 25, "#2ecc71", "#e0e0e0"
     elif risk_level == "Medium Risk":
@@ -24,18 +24,18 @@ def create_risk_gauge(risk_level, filename):
     plt.close()
 
 def create_radar_chart(applicant_vals, hist_data, filename):
-    # Get averages for Approved loans to compare against
+    
     approved_hist = hist_data[hist_data['loan_status'] == 'Approved']
     avg_income = approved_hist['income_annum'].mean()
     avg_credit = approved_hist['cibil_score'].mean()
     avg_loan = approved_hist['loan_amount'].mean()
     avg_assets = approved_hist['bank_asset_value'].mean()
     
-    # Normalize values (Applicant vs Average Approved)
-    categories = ['Income', 'CIBIL Score', 'Loan Amount', 'Bank Assets']
-    avg_vals = [1.0, 1.0, 1.0, 1.0] # Baseline is 1.0
     
-    # Applicant normalized values
+    categories = ['Income', 'CIBIL Score', 'Loan Amount', 'Bank Assets']
+    avg_vals = [1.0, 1.0, 1.0, 1.0] 
+    
+    
     app_norm = [
         applicant_vals['income'] / max(avg_income, 1),
         applicant_vals['credit'] / max(avg_credit, 1),
@@ -80,7 +80,7 @@ def create_feature_importance(rf_model, training_columns, filename):
     plt.figure(figsize=(6, 4))
     importances = rf_model.feature_importances_
     feat_df = pd.DataFrame({'Feature': training_columns, 'Importance': importances})
-    feat_df = feat_df.sort_values(by='Importance', ascending=True).tail(5) # Top 5
+    feat_df = feat_df.sort_values(by='Importance', ascending=True).tail(5) 
     
     plt.barh(feat_df['Feature'], feat_df['Importance'], color='#3498db')
     plt.title("Top Factors Driving AI Decisions")
