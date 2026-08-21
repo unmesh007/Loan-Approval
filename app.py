@@ -9,49 +9,99 @@ from math import pi
 import joblib
 from sklearn.metrics import accuracy_score, precision_score, recall_score, confusion_matrix
 from fpdf import FPDF
+import io
 
 st.set_page_config(page_title="Advanced Loan & Risk Analyzer", layout="wide")
 
 # ==========================================
 # DYNAMIC THEME ENGINE
 # ==========================================
-def get_dynamic_theme(risk_level):
+def get_dynamic_theme(risk_level="Neutral", approved=None):
     """
-    Returns the custom CSS with gradient colors based on the current risk level.
-    Uses dark, premium tones to ensure glassmorphism and white text remain readable.
+    Returns custom CSS with a two-color diagonal gradient that reflects BOTH
+    the risk level and the loan approval decision.
+
+    Gradient mapping:
+      Risk ↓ / Approval →    Approved          Not Approved
+      Low Risk            →  Green  + Blue     Green  + Red
+      Medium Risk         →  Yellow + Blue     Yellow + Red
+      High Risk           →  Red    + Blue     Red    (solid red tones)
+      Neutral (default)   →  Black  + Grey     (B&W)
+
+    Uses deep/dark versions of each colour so glassmorphism + white text stay readable.
     """
+
+    # ── Risk colour (left/top side of gradient) ──────────────────────────────
     if risk_level == "High Risk":
-        # Deep Reds
-        color1, color2, color3 = "#5e1414", "#300606", "#140000"
+        risk_dark   = "#4a0a0a"   # deep crimson
+        risk_mid    = "#2a0404"
+        risk_accent = "#ff2d2d"   # bright red for the animated shimmer
     elif risk_level == "Medium Risk":
-        # Deep Yellows / Golds
-        color1, color2, color3 = "#5e4b14", "#302506", "#141100"
+        risk_dark   = "#4a3a00"   # deep gold
+        risk_mid    = "#2a2000"
+        risk_accent = "#f5a623"   # amber for shimmer
     elif risk_level == "Low Risk":
-        # Deep Greens
-        color1, color2, color3 = "#145e26", "#063011", "#001404"
+        risk_dark   = "#003d12"   # deep forest green
+        risk_mid    = "#001f09"
+        risk_accent = "#1db954"   # vibrant green for shimmer
     else:
-        # Neutral / Default (Black, Grey, White)
-        color1, color2, color3 = "#363636", "#1c1c1c", "#0a0a0a"
+        # Neutral / initial default — pure black & white palette
+        risk_dark   = "#1a1a1a"
+        risk_mid    = "#0a0a0a"
+        risk_accent = "#888888"
+
+    # ── Approval colour (right/bottom side of gradient) ───────────────────────
+    if approved is None:
+        # No prediction yet → keep single-tone (same as risk, no second hue)
+        appr_dark   = risk_mid
+        appr_accent = risk_accent
+    elif approved:
+        appr_dark   = "#001a3d"   # deep navy blue
+        appr_accent = "#0057ff"   # electric blue shimmer
+    else:
+        appr_dark   = "#3d0000"   # deep dark red
+        appr_accent = "#cc0000"   # vivid red shimmer
 
     css = f"""
     <style>
-    /* Target the main app container */
+    /* ── Animated diagonal gradient background ── */
     .stApp {{
-        background: radial-gradient(circle at 50% 0%, {color1} 0%, {color2} 50%, {color3} 100%);
-        background-attachment: fixed;
-        background-size: 400% 400%;
-        animation: gradientBG 5s ease infinite;
-        transition: background 1.5s ease-in-out;
+        background: linear-gradient(
+            135deg,
+            {risk_dark}  0%,
+            {risk_mid}  40%,
+            {appr_dark} 70%,
+            #000000    100%
+        );
+        background-size: 300% 300%;
+        animation: dynamicBG 8s ease infinite;
+        transition: background 2s ease-in-out;
+    }}
+
+    @keyframes dynamicBG {{
+        0%   {{ background-position: 0%   50%; }}
+        50%  {{ background-position: 100% 50%; }}
+        100% {{ background-position: 0%   50%; }}
+    }}
+
+    /* Subtle top-edge glow using the accent colours */
+    .stApp::before {{
+        content: "";
+        position: fixed;
+        top: 0; left: 0; right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, {risk_accent}, {appr_accent});
+        z-index: 9999;
+        animation: accentPulse 3s ease-in-out infinite alternate;
+    }}
+
+    @keyframes accentPulse {{
+        from {{ opacity: 0.6; }}
+        to   {{ opacity: 1.0; }}
     }}
 
     [data-testid="stHeader"] {{
         background: transparent !important;
-    }}
-
-    @keyframes gradientBG {{
-        0% {{ background-position: 0% 50%; }}
-        50% {{ background-position: 100% 50%; }}
-        100% {{ background-position: 0% 50%; }}
     }}
 
     /* Glassmorphism for inputs and forms */
@@ -167,8 +217,11 @@ def get_dynamic_theme(risk_level):
     return css
 
 # Initialize session state for the dynamic theme
+# Stores both risk level and approval decision so the gradient is fully informed.
 if 'current_theme' not in st.session_state:
     st.session_state.current_theme = "Neutral"
+if 'current_approved' not in st.session_state:
+    st.session_state.current_approved = None   # None = no prediction yet
 
 # Placeholder at the top — CSS is injected here at the END of the script
 # so it always captures the latest session_state after form submission.
@@ -334,13 +387,13 @@ def create_pdf(name, app_vals, pred_text, risk, conditions):
         # PAGE 1: Text
         pdf.add_page()
         pdf.set_font("Arial", 'B', 16)
-        pdf.cell(200, 10, txt="Comprehensive Loan Analysis Report", ln=True, align='C')
+        pdf.cell(200, 10, text="Comprehensive Loan Analysis Report", new_x="LMARGIN", new_y="NEXT", align='C')
         pdf.set_font("Arial", size=12)
-        pdf.cell(200, 10, txt="--------------------------------------------------", ln=True, align='C')
-        pdf.cell(200, 10, txt=f"Applicant Name/ID: {name}", ln=True)
-        pdf.cell(200, 10, txt=f"Prediction: {pred_text} | Risk Level: {risk}", ln=True)
-        pdf.cell(200, 10, txt="Conditions:", ln=True)
-        for c in conditions: pdf.cell(200, 8, txt=f" - {c}", ln=True)
+        pdf.cell(200, 10, text="--------------------------------------------------", new_x="LMARGIN", new_y="NEXT", align='C')
+        pdf.cell(200, 10, text=f"Applicant Name/ID: {name}", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(200, 10, text=f"Prediction: {pred_text} | Risk Level: {risk}", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(200, 10, text="Conditions:", new_x="LMARGIN", new_y="NEXT")
+        for c in conditions: pdf.cell(200, 8, text=f" - {c}", new_x="LMARGIN", new_y="NEXT")
         
         # PAGE 1: Add first two visuals (Gauge and Radar)
         pdf.image(gauge_file, x=10, y=80, w=80)
@@ -348,7 +401,7 @@ def create_pdf(name, app_vals, pred_text, risk, conditions):
         
         # PAGE 2: Add bottom visuals (Distribution and Features)
         pdf.add_page()
-        pdf.cell(200, 10, txt="Visual Context & AI Transparency", ln=True, align='C')
+        pdf.cell(200, 10, text="Visual Context & AI Transparency", new_x="LMARGIN", new_y="NEXT", align='C')
         pdf.image(dist_file, x=20, y=30, w=160)
         pdf.image(feat_file, x=20, y=140, w=160)
     
@@ -374,28 +427,66 @@ def create_pdf(name, app_vals, pred_text, risk, conditions):
 animated_title("🏦 Advanced Loan & Risk Analyzer")
 st.write("With full data visualization integration.")
 
-tab_form, tab_dash = st.tabs(["📝 New Application", "📊 Model Dashboard"])
+tab_form, tab_dash, tab_batch = st.tabs(["📝 New Application", "📊 Model Dashboard", "📁 Batch Upload"])
 
 with tab_form:
+    st.markdown("### 📥 Pre-fill from Excel/CSV (Optional)")
+    uploaded_single = st.file_uploader("Upload an Excel or CSV file to pre-fill the form below", type=["xlsx", "csv"], key="single_upload")
+    if uploaded_single is not None:
+        try:
+            if uploaded_single.name.endswith(".csv"):
+                df_single = pd.read_csv(uploaded_single)
+            else:
+                df_single = pd.read_excel(uploaded_single)
+            
+            if not df_single.empty:
+                row = df_single.iloc[0]
+                # Try to match typical column names in the dataset
+                # The dataset uses: no_of_dependents, education, self_employed, income_annum, loan_amount, loan_term, cibil_score, residential_assets_value, commercial_assets_value, luxury_assets_value, bank_asset_value
+                st.session_state.prefill = {
+                    'dependents': int(row.get('no_of_dependents', 0)) if 'no_of_dependents' in df_single.columns else 0,
+                    'education': 'Graduate' if ('education' in df_single.columns and 'Not' not in str(row.get('education', ''))) else 'Not Graduate',
+                    'self_employed': 'Yes' if ('self_employed' in df_single.columns and 'Yes' in str(row.get('self_employed', ''))) else 'No',
+                    'income': int(row.get('income_annum', 0)) if 'income_annum' in df_single.columns else 0,
+                    'loan': int(row.get('loan_amount', 0)) if 'loan_amount' in df_single.columns else 0,
+                    'term': int(row.get('loan_term', 0)) if 'loan_term' in df_single.columns else 0,
+                    'cibil': int(row.get('cibil_score', 300)) if 'cibil_score' in df_single.columns else 300,
+                    'debt': int(row.get('existing_debt', 0)) if 'existing_debt' in df_single.columns else 0,
+                    'res_assets': int(row.get('residential_assets_value', 0)) if 'residential_assets_value' in df_single.columns else 0,
+                    'com_assets': int(row.get('commercial_assets_value', 0)) if 'commercial_assets_value' in df_single.columns else 0,
+                    'lux_assets': int(row.get('luxury_assets_value', 0)) if 'luxury_assets_value' in df_single.columns else 0,
+                    'bank_assets': int(row.get('bank_asset_value', 0)) if 'bank_asset_value' in df_single.columns else 0
+                }
+                st.success("Form pre-filled successfully from the uploaded file!")
+        except Exception as e:
+            st.error(f"Error reading file: {e}")
+
+    prefill = st.session_state.get('prefill', {})
+
     apply_bento_form_style()
     with st.form("input_form"):
         col1, col2 = st.columns(2)
         with col1:
             app_name = st.text_input("Applicant Name / ID", "")
-            dependents = st.number_input("No. of Dependents", min_value=0, step=1)
-            education = st.selectbox("Education", ['Graduate', 'Not Graduate'])
-            self_employed = st.selectbox("Self Employed", ['Yes', 'No'])
-            income_annum = st.number_input("Annual Income (INR)", min_value=0, step=100000)
-            loan_amount = st.number_input("Loan Amount (INR)", min_value=0, step=100000)
+            dependents = st.number_input("No. of Dependents", min_value=0, step=1, value=prefill.get('dependents', 0))
+            
+            # Helper to get the correct index for selectbox prefill
+            edu_index = 0 if prefill.get('education', 'Graduate') == 'Graduate' else 1
+            se_index = 0 if prefill.get('self_employed', 'Yes') == 'Yes' else 1
+            
+            education = st.selectbox("Education", ['Graduate', 'Not Graduate'], index=edu_index)
+            self_employed = st.selectbox("Self Employed", ['Yes', 'No'], index=se_index)
+            income_annum = st.number_input("Annual Income (INR)", min_value=0, step=100000, value=prefill.get('income', 0))
+            loan_amount = st.number_input("Loan Amount (INR)", min_value=0, step=100000, value=prefill.get('loan', 0))
             
         with col2:
-            loan_term = st.number_input("Loan Term (Months)", min_value=0, step=12)
-            cibil_score = st.number_input("CIBIL Score", min_value=300, max_value=900, step=10)
-            existing_debt = st.number_input("Existing Annual Debt (INR)", min_value=0, step=10000)
-            res_assets = st.number_input("Residential Assets", min_value=0, step=100000)
-            com_assets = st.number_input("Commercial Assets", min_value=0, step=100000)
-            lux_assets = st.number_input("Luxury Assets", min_value=0, step=100000)
-            bank_assets = st.number_input("Bank Asset", min_value=0, step=100000)
+            loan_term = st.number_input("Loan Term (Months)", min_value=0, step=12, value=prefill.get('term', 0))
+            cibil_score = st.number_input("CIBIL Score", min_value=300, max_value=900, step=10, value=max(300, prefill.get('cibil', 300)))
+            existing_debt = st.number_input("Existing Annual Debt (INR)", min_value=0, step=10000, value=prefill.get('debt', 0))
+            res_assets = st.number_input("Residential Assets", min_value=0, step=100000, value=prefill.get('res_assets', 0))
+            com_assets = st.number_input("Commercial Assets", min_value=0, step=100000, value=prefill.get('com_assets', 0))
+            lux_assets = st.number_input("Luxury Assets", min_value=0, step=100000, value=prefill.get('lux_assets', 0))
+            bank_assets = st.number_input("Bank Asset", min_value=0, step=100000, value=prefill.get('bank_assets', 0))
             
         submit_btn = st.form_submit_button("Run Analysis & Generate Report")
         
@@ -436,9 +527,10 @@ with tab_form:
         risk_lvl, risk_factors, conditions = calculate_risk(cibil_score, user_data["Loan_to_Income_Ratio"][0], calculated_dti, loan_amount)
         
         # --- THEME UPDATE TRIGGER ---
-        # Update session_state so the CSS placeholder at the bottom of the file
-        # re-renders with the correct risk-level colour on this same run.
-        st.session_state.current_theme = risk_lvl
+        # Store BOTH risk level and approval decision so the CSS placeholder
+        # at the bottom of the file can render the correct two-colour gradient.
+        st.session_state.current_theme    = risk_lvl
+        st.session_state.current_approved = (pred == 0)  # True = Approved, False = Rejected
         
         st.divider()
         st.subheader("Results")
@@ -505,10 +597,112 @@ with tab_dash:
     ax.set_ylabel("Actual")
     st.pyplot(fig, use_container_width=False)
 
+with tab_batch:
+    st.header("📁 Batch Upload & Processing")
+    st.write("Upload a CSV or Excel file containing multiple loan applications to process them all at once.")
+    
+    uploaded_batch = st.file_uploader("Upload Applications File", type=["xlsx", "csv"], key="batch_upload")
+    
+    if uploaded_batch is not None:
+        try:
+            if uploaded_batch.name.endswith(".csv"):
+                batch_df = pd.read_csv(uploaded_batch)
+            else:
+                batch_df = pd.read_excel(uploaded_batch)
+                
+            st.write("### Data Preview")
+            st.dataframe(batch_df.head())
+            
+            if st.button("Run Batch Analysis"):
+                with st.spinner("Processing applications..."):
+                    # Create a copy for processing
+                    proc_df = batch_df.copy()
+                    
+                    # Clean column names
+                    proc_df.columns = proc_df.columns.str.strip()
+                    
+                    # Ensure required columns are present or set defaults
+                    required_cols = [
+                        'no_of_dependents', 'education', 'self_employed', 'income_annum', 
+                        'loan_amount', 'loan_term', 'cibil_score', 'residential_assets_value', 
+                        'commercial_assets_value', 'luxury_assets_value', 'bank_asset_value'
+                    ]
+                    
+                    missing_cols = [col for col in required_cols if col not in proc_df.columns]
+                    if missing_cols:
+                        st.error(f"Missing required columns in uploaded file: {', '.join(missing_cols)}")
+                    else:
+                        # Clean categorical data
+                        cat_cols = proc_df.select_dtypes(include=["object"]).columns
+                        for c in cat_cols:
+                            proc_df[c] = proc_df[c].str.strip()
+                            
+                        # Encode education
+                        # Note: if there are unknown labels, transform will fail. We use a safe approach.
+                        proc_df["education"] = proc_df["education"].apply(lambda x: x if x in le_edu.classes_ else le_edu.classes_[0])
+                        proc_df["education"] = le_edu.transform(proc_df["education"])
+                        
+                        # Feature engineering
+                        proc_df["Total_Assets"] = proc_df["residential_assets_value"] + proc_df["commercial_assets_value"] + proc_df["luxury_assets_value"] + proc_df["bank_asset_value"]
+                        proc_df["Loan_to_Income_Ratio"] = proc_df["loan_amount"] / (proc_df["income_annum"] + 1)
+                        proc_df["cibil_score_sq"] = proc_df["cibil_score"] ** 2
+                        
+                        proc_df = pd.get_dummies(proc_df, drop_first=True)
+                        for col in training_columns:
+                            if col not in proc_df.columns: proc_df[col] = 0
+                        proc_df = proc_df[training_columns]
+                        
+                        # Scale
+                        batch_scaled = scaler.transform(proc_df)
+                        
+                        # Predict
+                        batch_preds = rf_model.predict(batch_scaled)
+                        
+                        # Add results to original dataframe
+                        batch_df['Prediction'] = ["Approved ✅" if p == 0 else "Rejected ❌" for p in batch_preds]
+                        
+                        # Add risk levels
+                        risk_levels = []
+                        for idx, row in batch_df.iterrows():
+                            cibil = row.get('cibil_score', 0)
+                            lti = row.get('loan_amount', 0) / max(1, row.get('income_annum', 1))
+                            dti = row.get('existing_debt', 0) / max(1, row.get('income_annum', 1))
+                            loan_amt = row.get('loan_amount', 0)
+                            risk, _, _ = calculate_risk(cibil, lti, dti, loan_amt)
+                            risk_levels.append(risk)
+                            
+                        batch_df['Risk Level'] = risk_levels
+                        
+                        st.success("Batch analysis complete!")
+                        st.write("### Analysis Results")
+                        st.dataframe(batch_df)
+                        
+                        # Provide download link for Excel
+                        output = io.BytesIO()
+                        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                            batch_df.to_excel(writer, index=False, sheet_name='Analysis_Results')
+                        
+                        st.download_button(
+                            label="📥 Download Results as Excel",
+                            data=output.getvalue(),
+                            file_name="Batch_Analysis_Results.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+                        
+        except Exception as e:
+            st.error(f"Error processing file: {e}")
+
+
 # ==========================================
 # INJECT CSS DYNAMICALLY
 # ==========================================
 # Written into the placeholder defined at the top of the file.
 # Placing it here (bottom of script) ensures it always reads the LATEST
 # session_state value — including any risk level set inside the form block.
-css_placeholder.markdown(get_dynamic_theme(st.session_state.current_theme), unsafe_allow_html=True)
+css_placeholder.markdown(
+    get_dynamic_theme(
+        st.session_state.current_theme,
+        st.session_state.current_approved,
+    ),
+    unsafe_allow_html=True,
+)
