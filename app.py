@@ -320,9 +320,13 @@ def load_assets():
         st.error("Historical data 'loan_approval_dataset.csv' not found.")
         st.stop()
         
-    return assets["model"], assets["scaler"], assets["le_edu"], assets["training_columns"], assets["X_test_scaled"], assets["y_test"], hist_data
+    # Safe retrieval of imputers in case user loads an old joblib model
+    num_imputer = assets.get("num_imputer", None)
+    cat_imputer = assets.get("cat_imputer", None)
+        
+    return assets["model"], assets["scaler"], assets["le_edu"], assets["training_columns"], assets["X_test_scaled"], assets["y_test"], hist_data, num_imputer, cat_imputer
 
-rf_model, scaler, le_edu, training_columns, X_test_scaled, y_test, hist_data = load_assets()
+rf_model, scaler, le_edu, training_columns, X_test_scaled, y_test, hist_data, num_imputer, cat_imputer = load_assets()
 
 from visualizations import create_risk_gauge, create_radar_chart, create_distribution_plot, create_feature_importance
 def calculate_risk(cibil, lti, dti, loan_amount):
@@ -376,11 +380,7 @@ def create_pdf(name, app_vals, pred_text, risk, conditions):
         pdf.image(dist_file, x=20, y=30, w=160)
         pdf.image(feat_file, x=20, y=140, w=160)
     
-        try:
-            pdf_output = pdf.output(dest='S').encode('latin-1')
-        except UnicodeEncodeError:
-            st.warning("Certain special characters were found and adjusted for PDF compatibility.")
-            pdf_output = pdf.output(dest='S').encode('latin-1', errors='replace')
+        pdf_output = bytes(pdf.output())
             
     finally:
         for file in [gauge_file, radar_file, dist_file, feat_file]:
@@ -474,7 +474,8 @@ with tab_form:
         user_data["Loan_to_Income_Ratio"] = user_data["loan_amount"] / (user_data["income_annum"] + 1)
         user_data["cibil_score_sq"] = user_data["cibil_score"] ** 2
         
-        user_data = pd.get_dummies(user_data, drop_first=True)
+        # FIX: Removed drop_first=True to ensure categorical features aren't zeroed out dynamically
+        user_data = pd.get_dummies(user_data)
         for col in training_columns:
             if col not in user_data.columns: user_data[col] = 0
         user_data = user_data[training_columns]
@@ -587,6 +588,16 @@ with tab_batch:
                     if missing_cols:
                         st.error(f"Missing required columns in uploaded file: {', '.join(missing_cols)}")
                     else:
+                        
+                        # FIX: Apply Imputers to prevent NaN crashes
+                        if num_imputer and cat_imputer:
+                            num_c = [c for c in proc_df.columns if proc_df[c].dtype in ['int64', 'float64'] and c in num_imputer.feature_names_in_]
+                            cat_c = [c for c in proc_df.columns if proc_df[c].dtype == 'object' and c in cat_imputer.feature_names_in_]
+                            if num_c: proc_df[num_c] = num_imputer.transform(proc_df[num_c])
+                            if cat_c: proc_df[cat_c] = cat_imputer.transform(proc_df[cat_c])
+                        else:
+                            proc_df = proc_df.fillna(method='ffill').fillna(0) # Fallback if model hasn't been retrained
+                            
                         cat_cols = proc_df.select_dtypes(include=["object"]).columns
                         for c in cat_cols:
                             proc_df[c] = proc_df[c].str.strip()
@@ -598,7 +609,8 @@ with tab_batch:
                         proc_df["Loan_to_Income_Ratio"] = proc_df["loan_amount"] / (proc_df["income_annum"] + 1)
                         proc_df["cibil_score_sq"] = proc_df["cibil_score"] ** 2
                         
-                        proc_df = pd.get_dummies(proc_df, drop_first=True)
+                        # FIX: Removed drop_first=True
+                        proc_df = pd.get_dummies(proc_df)
                         for col in training_columns:
                             if col not in proc_df.columns: proc_df[col] = 0
                         proc_df = proc_df[training_columns]

@@ -80,7 +80,9 @@ def train_and_save():
         "le_edu": le_edu, 
         "training_columns": training_columns,
         "X_test_scaled": X_test_scaled,
-        "y_test": y_test
+        "y_test": y_test,
+        "num_imputer": num_imputer,
+        "cat_imputer": cat_imputer
     }
     
     joblib.dump(artifacts, "loan_model_assets.joblib")
